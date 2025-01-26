@@ -49,6 +49,7 @@ class DLASnowflake {
     constructor() {
         this.particleRadius = 0.08;  // NEW: explicit radius variable
         this.randomness = 0.9; // Adjust this value to control random movement
+        this.verticalFactor = 0.8; // Controls how flat the snowflake is
         this.particleGeometry = new THREE.SphereGeometry(this.particleRadius, 8, 8);
         this.particleMaterial = new THREE.MeshBasicMaterial({
             color: 0xffffff,
@@ -74,7 +75,7 @@ class DLASnowflake {
         this.activeParticles = [];  // Array to track moving particles
         this.spawnRadius = 10;       // Distance from center to spawn
         this.stepSize = 0.02;       // How far particles move each step
-        this.maxActive = 20;        // Maximum number of active particles
+        this.maxActive = 50;        // Maximum number of active particles
     }
 
 
@@ -98,21 +99,21 @@ class DLASnowflake {
     generateSpiralSymmetry(position) {
         const positions = [];
         const numRotations = 6; // 6-fold symmetry
-        
+
         // Create rotational symmetry around Y axis
         for (let i = 0; i < numRotations; i++) {
             const angle = (Math.PI * 2 * i) / numRotations;
-            
+
             // Rotate position around Y axis
             const rotated = new THREE.Vector3(
                 position.x * Math.cos(angle) - position.z * Math.sin(angle),
                 position.y,
                 position.x * Math.sin(angle) + position.z * Math.cos(angle)
             );
-            
+
             // Add rotated position
             positions.push(rotated);
-            
+
             // Add reflection across XZ plane (y becomes -y)
             positions.push(new THREE.Vector3(
                 rotated.x,
@@ -120,25 +121,25 @@ class DLASnowflake {
                 rotated.z
             ));
         }
-        
+
         return positions;
     }
 
-    generateSymmetry(position) {
+    generate6FoldSymmetry(position) {
         const positions = [];
-    
+
         // Base rotations (60° increments)
         const numRotations = 6;
         for (let i = 0; i < numRotations; i++) {
             const angle = (Math.PI * 2 * i) / numRotations;
-            
+
             // Rotate position around Y axis
             const rotated = new THREE.Vector3(
                 position.x * Math.cos(angle) - position.z * Math.sin(angle),
                 position.y,
                 position.x * Math.sin(angle) + position.z * Math.cos(angle)
             );
-            
+
             // For each rotated position, reflect across XY plane
             positions.push(
                 rotated.clone(),                    // Original
@@ -148,7 +149,7 @@ class DLASnowflake {
                     -rotated.z                      // Reflect across XY plane
                 )
             );
-    
+
             // Also reflect across XZ plane
             positions.push(
                 new THREE.Vector3(
@@ -163,10 +164,14 @@ class DLASnowflake {
                 )
             );
         }
-        
+
         return positions;
     }
-    
+
+    generateSymmetry(position) {
+        return this.generate6FoldSymmetry(position);
+    }
+
 
     // Modify addParticle to use symmetry
     addParticle(position) {
@@ -194,7 +199,7 @@ class DLASnowflake {
         const theta = Math.acos(cosTheta);
 
         const x = this.spawnRadius * Math.sin(theta) * Math.cos(phi);
-        const y = this.spawnRadius * Math.sin(theta) * Math.sin(phi);
+        const y = this.spawnRadius * Math.sin(theta) * Math.sin(phi) * this.verticalFactor;
         const z = this.spawnRadius * Math.cos(theta);
 
         return new THREE.Vector3(x, y, z);
@@ -202,40 +207,53 @@ class DLASnowflake {
 
     moveParticles() {
         // Only spawn one new particle per frame if we have room
-        if (this.activeParticles.length < this.maxActive && 
+        if (this.activeParticles.length < this.maxActive &&
             (this.structure.length + this.activeParticles.length) < this.maxParticles) {
             this.activeParticles.push(this.spawnParticle());
         }
-    
+
         // Move each active particle
         for (let i = this.activeParticles.length - 1; i >= 0; i--) {
             const particle = this.activeParticles[i];
-    
+
             // Move towards center with some randomness
             const toCenter = new THREE.Vector3().subVectors(new THREE.Vector3(0, 0, 0), particle).normalize();
+            // Modified random offset with reduced vertical component
             const randomOffset = new THREE.Vector3(
                 (Math.random() - 0.5) * this.randomness,
-                (Math.random() - 0.5) * this.randomness,
+                (Math.random() - 0.5) * this.randomness * this.verticalFactor, // Reduced vertical randomness
                 (Math.random() - 0.5) * this.randomness
             );
-    
+
             particle.add(toCenter.multiplyScalar(this.stepSize)).add(randomOffset);
-    
+
             // Check for collisions with structure
             if (this.checkCollision(particle)) {
                 this.addParticle(particle);
                 this.activeParticles.splice(i, 1);
             }
         }
-    
+
         this.updateActiveParticles();
     }
 
+    // checkCollision(particle) {
+    //     const collisionDistance = this.particleRadius * 3;
+    //     return this.structure.some(fixed =>
+    //         particle.distanceTo(fixed) < collisionDistance
+    //     );
+    // }
     checkCollision(particle) {
         const collisionDistance = this.particleRadius * 3;
-        return this.structure.some(fixed =>
-            particle.distanceTo(fixed) < collisionDistance
-        );
+        // const verticalCollisionFactor = 0.5; // More strict collision check vertically
+        
+        return this.structure.some(fixed => {
+            const dx = particle.x - fixed.x;
+            const dy = (particle.y - fixed.y) / this.verticalFactor; // Scale vertical distance
+            const dz = particle.z - fixed.z;
+            
+            return Math.sqrt(dx * dx + dy * dy + dz * dz) < collisionDistance;
+        });
     }
 
     // NEW: Update visualization of active particles
@@ -265,7 +283,7 @@ function animate() {
     requestAnimationFrame(animate);
     // Run multiple simulation steps per frame
     const stepsPerFrame = 10;  // Adjust this number as needed
-    for(let i = 0; i < stepsPerFrame; i++) {
+    for (let i = 0; i < stepsPerFrame; i++) {
         snowflake.moveParticles();
     }
     controls.update();
