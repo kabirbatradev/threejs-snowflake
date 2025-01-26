@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
+import GUI from 'lil-gui';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -57,7 +58,7 @@ class DLASnowflake {
         this.particleMaterial = new THREE.MeshBasicMaterial({
             color: 0xffffff,
             transparent: true,
-            opacity: 0.5,
+            opacity: 0.75,
             // vertexColors: true, 
         });
 
@@ -310,9 +311,77 @@ class DLASnowflake {
         
         this.instancedMesh.instanceMatrix.needsUpdate = true;
     }
+
+    updateAllScales() {
+        for (let i = 0; i < this.structure.length; i++) {
+            const matrix = new THREE.Matrix4();
+            const progress = i / this.maxParticles;
+            const scale = THREE.MathUtils.lerp(this.innerSizeMultiplier, this.outerSizeMultiplier, progress);
+            
+            matrix.compose(
+                this.structure[i],
+                new THREE.Quaternion(),
+                new THREE.Vector3(scale, scale, scale)
+            );
+            this.instancedMesh.setMatrixAt(i, matrix);
+        }
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
+    }
+    
+    
+    reset() {
+        this.particleCount = 0;
+        this.structure = [];
+        this.activeParticles = [];
+        
+        // Reset all instances to be hidden
+        for (let i = 0; i < this.maxParticles; i++) {
+            const matrix = new THREE.Matrix4();
+            matrix.setPosition(new THREE.Vector3(999, 999, 999));
+            this.instancedMesh.setMatrixAt(i, matrix);
+        }
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
+        
+        // Add new seed particle at center
+        this.addParticle(new THREE.Vector3(0, 0, 0));
+    }
 }
 
-const snowflake = new DLASnowflake();
+let snowflake = new DLASnowflake();
+
+// GUI Setup
+const gui = new GUI();
+
+// Particle Size
+const sizeFolder = gui.addFolder('Particle Size');
+sizeFolder.add(snowflake, 'innerSizeMultiplier', 0.2, 2.0)
+    .name('Inner Multiplier')
+    .onChange(() => snowflake.updateAllScales());
+sizeFolder.add(snowflake, 'outerSizeMultiplier', 0.2, 2.0)
+    .name('Outer Multiplier')
+    .onChange(() => snowflake.updateAllScales());
+
+// Growth Parameters
+const growthFolder = gui.addFolder('Growth');
+growthFolder.add(snowflake, 'randomness', 0.1, 2.0).name('Random Movement');
+growthFolder.add(snowflake, 'verticalFactor', 0.1, 1.0).name('Vertical Factor');
+growthFolder.add(snowflake, 'stepSize', 0.01, 0.1).name('Step Size');
+growthFolder.add(snowflake, 'spawnRadius', 5, 20).name('Spawn Radius');
+
+// Visual Effects
+const visualsFolder = gui.addFolder('Visual Effects');
+visualsFolder.add(bloomPass, 'strength', 0, 5).name('Bloom Strength');
+visualsFolder.add(bloomPass, 'radius', 0, 1).name('Bloom Radius');
+visualsFolder.add(snowflake.particleMaterial, 'opacity', 0, 1).name('Opacity');
+
+// Simulation
+const simFolder = gui.addFolder('Simulation');
+simFolder.add(snowflake, 'maxActive', 1, 100, 1).name('Active Particles');
+
+// Add button at the top level of GUI
+gui.add({
+    generateNew: () => snowflake.reset()
+}, 'generateNew').name('Generate New Snowflake');
 
 // Animation loop
 function animate() {
