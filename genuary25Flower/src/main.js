@@ -10,7 +10,7 @@ scene.background = new THREE.Color(0x000000);
 
 // Camera setup
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(5, 5, 5);
+camera.position.set(0, 10, 0); // Position above
 camera.lookAt(0, 0, 0);
 
 // Renderer setup
@@ -22,7 +22,7 @@ document.body.appendChild(renderer.domElement);
 const renderScene = new RenderPass(scene, camera);
 const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.5,    // strength
+    0.4,    // strength
     0.4,    // radius
     0.85    // threshold
 );
@@ -33,6 +33,8 @@ composer.addPass(bloomPass);
 // Controls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+controls.minPolarAngle = 0;
+controls.maxPolarAngle = Math.PI / 2; // Limit to not go below horizontal
 
 // Reference helpers
 const gridHelper = new THREE.GridHelper(10, 10);
@@ -45,13 +47,16 @@ scene.add(axesHelper);
 
 class DLASnowflake {
     constructor() {
-        this.particleRadius = 0.1;  // NEW: explicit radius variable
+        this.particleRadius = 0.08;  // NEW: explicit radius variable
+        this.randomness = 0.9; // Adjust this value to control random movement
         this.particleGeometry = new THREE.SphereGeometry(this.particleRadius, 8, 8);
         this.particleMaterial = new THREE.MeshBasicMaterial({
             color: 0xffffff,
+            transparent: true,
+            opacity: 0.5,
         });
 
-        this.maxParticles = 1000;
+        this.maxParticles = 5000;
         this.instancedMesh = new THREE.InstancedMesh(
             this.particleGeometry,
             this.particleMaterial,
@@ -67,13 +72,13 @@ class DLASnowflake {
 
         // NEW: Add properties for active particles
         this.activeParticles = [];  // Array to track moving particles
-        this.spawnRadius = 3;       // Distance from center to spawn
-        this.stepSize = 0.05;       // How far particles move each step
-        this.maxActive = 10;        // Maximum number of active particles
+        this.spawnRadius = 10;       // Distance from center to spawn
+        this.stepSize = 0.02;       // How far particles move each step
+        this.maxActive = 50;        // Maximum number of active particles
     }
 
 
-    generateSymmetry(position) {
+    generateXYZSymmetry(position) {
         const positions = [];
         // Original position
         positions.push(position.clone());
@@ -89,6 +94,79 @@ class DLASnowflake {
 
         return positions;
     }
+
+    generateSpiralSymmetry(position) {
+        const positions = [];
+        const numRotations = 6; // 6-fold symmetry
+        
+        // Create rotational symmetry around Y axis
+        for (let i = 0; i < numRotations; i++) {
+            const angle = (Math.PI * 2 * i) / numRotations;
+            
+            // Rotate position around Y axis
+            const rotated = new THREE.Vector3(
+                position.x * Math.cos(angle) - position.z * Math.sin(angle),
+                position.y,
+                position.x * Math.sin(angle) + position.z * Math.cos(angle)
+            );
+            
+            // Add rotated position
+            positions.push(rotated);
+            
+            // Add reflection across XZ plane (y becomes -y)
+            positions.push(new THREE.Vector3(
+                rotated.x,
+                -rotated.y,
+                rotated.z
+            ));
+        }
+        
+        return positions;
+    }
+
+    generateSymmetry(position) {
+        const positions = [];
+    
+        // Base rotations (60° increments)
+        const numRotations = 6;
+        for (let i = 0; i < numRotations; i++) {
+            const angle = (Math.PI * 2 * i) / numRotations;
+            
+            // Rotate position around Y axis
+            const rotated = new THREE.Vector3(
+                position.x * Math.cos(angle) - position.z * Math.sin(angle),
+                position.y,
+                position.x * Math.sin(angle) + position.z * Math.cos(angle)
+            );
+            
+            // For each rotated position, reflect across XY plane
+            positions.push(
+                rotated.clone(),                    // Original
+                new THREE.Vector3(
+                    rotated.x,
+                    rotated.y,
+                    -rotated.z                      // Reflect across XY plane
+                )
+            );
+    
+            // Also reflect across XZ plane
+            positions.push(
+                new THREE.Vector3(
+                    rotated.x,
+                    -rotated.y,
+                    rotated.z                       // Reflect across XZ plane
+                ),
+                new THREE.Vector3(
+                    rotated.x,
+                    -rotated.y,
+                    -rotated.z                      // Reflect across both planes
+                )
+            );
+        }
+        
+        return positions;
+    }
+    
 
     // Modify addParticle to use symmetry
     addParticle(position) {
@@ -136,9 +214,9 @@ class DLASnowflake {
             // Move towards center with some randomness
             const toCenter = new THREE.Vector3().subVectors(new THREE.Vector3(0, 0, 0), particle).normalize();
             const randomOffset = new THREE.Vector3(
-                (Math.random() - 0.5) * 0.5,
-                (Math.random() - 0.5) * 0.5,
-                (Math.random() - 0.5) * 0.5
+                (Math.random() - 0.5) * this.randomness,
+                (Math.random() - 0.5) * this.randomness,
+                (Math.random() - 0.5) * this.randomness
             );
 
             particle.add(toCenter.multiplyScalar(this.stepSize)).add(randomOffset);
@@ -154,7 +232,7 @@ class DLASnowflake {
     }
 
     checkCollision(particle) {
-        const collisionDistance = this.particleRadius * 2; // Spheres will touch exactly
+        const collisionDistance = this.particleRadius * 4;
         return this.structure.some(fixed =>
             particle.distanceTo(fixed) < collisionDistance
         );
