@@ -22,7 +22,7 @@ document.body.appendChild(renderer.domElement);
 const renderScene = new RenderPass(scene, camera);
 const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.4,    // strength
+    0.2,    // strength
     0.4,    // radius
     0.85    // threshold
 );
@@ -74,7 +74,7 @@ class DLASnowflake {
         this.activeParticles = [];  // Array to track moving particles
         this.spawnRadius = 10;       // Distance from center to spawn
         this.stepSize = 0.02;       // How far particles move each step
-        this.maxActive = 50;        // Maximum number of active particles
+        this.maxActive = 20;        // Maximum number of active particles
     }
 
 
@@ -200,17 +200,17 @@ class DLASnowflake {
         return new THREE.Vector3(x, y, z);
     }
 
-    // NEW: Move active particles
     moveParticles() {
-        // Spawn new particles if needed
-        while (this.activeParticles.length < this.maxActive) {
+        // Only spawn one new particle per frame if we have room
+        if (this.activeParticles.length < this.maxActive && 
+            (this.structure.length + this.activeParticles.length) < this.maxParticles) {
             this.activeParticles.push(this.spawnParticle());
         }
-
+    
         // Move each active particle
         for (let i = this.activeParticles.length - 1; i >= 0; i--) {
             const particle = this.activeParticles[i];
-
+    
             // Move towards center with some randomness
             const toCenter = new THREE.Vector3().subVectors(new THREE.Vector3(0, 0, 0), particle).normalize();
             const randomOffset = new THREE.Vector3(
@@ -218,21 +218,21 @@ class DLASnowflake {
                 (Math.random() - 0.5) * this.randomness,
                 (Math.random() - 0.5) * this.randomness
             );
-
+    
             particle.add(toCenter.multiplyScalar(this.stepSize)).add(randomOffset);
-
+    
             // Check for collisions with structure
             if (this.checkCollision(particle)) {
                 this.addParticle(particle);
                 this.activeParticles.splice(i, 1);
             }
         }
-
+    
         this.updateActiveParticles();
     }
 
     checkCollision(particle) {
-        const collisionDistance = this.particleRadius * 4;
+        const collisionDistance = this.particleRadius * 3;
         return this.structure.some(fixed =>
             particle.distanceTo(fixed) < collisionDistance
         );
@@ -263,7 +263,11 @@ const snowflake = new DLASnowflake();
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
-    snowflake.moveParticles(); // Add this line
+    // Run multiple simulation steps per frame
+    const stepsPerFrame = 10;  // Adjust this number as needed
+    for(let i = 0; i < stepsPerFrame; i++) {
+        snowflake.moveParticles();
+    }
     controls.update();
     composer.render(); // Use composer instead of renderer
 }
