@@ -23,7 +23,7 @@ document.body.appendChild(renderer.domElement);
 const renderScene = new RenderPass(scene, camera);
 const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.2,    // strength
+    2,    // strength
     0.4,    // radius
     0.85    // threshold
 );
@@ -38,22 +38,25 @@ controls.minPolarAngle = 0;
 controls.maxPolarAngle = Math.PI / 2; // Limit to not go below horizontal
 
 // Reference helpers
-const gridHelper = new THREE.GridHelper(10, 10);
-gridHelper.material.opacity = 0.5;
-gridHelper.material.transparent = true;
-scene.add(gridHelper);
+// const gridHelper = new THREE.GridHelper(10, 10);
+// gridHelper.material.opacity = 0.5;
+// gridHelper.material.transparent = true;
+// scene.add(gridHelper);
 
-const axesHelper = new THREE.AxesHelper(5);
-scene.add(axesHelper);
+// const axesHelper = new THREE.AxesHelper(5);
+// scene.add(axesHelper);
 
 class DLASnowflake {
     constructor() {
         this.particleRadius = 0.08;  // NEW: explicit radius variable
-        this.innerSizeMultiplier = 0.6;
+        this.innerSizeMultiplier = 0.5;
         this.outerSizeMultiplier = 1.0;
         
+        this.innerColor = new THREE.Color().setHSL(0.6, 0.8, 0.5 + 0 * 0.5); // cool blue
+        this.outerColor = new THREE.Color().setHSL(0.6, 0.8, 0.5 + 1 * 0.5); // white
+        
         this.randomness = 0.9; // Adjust this value to control random movement
-        this.verticalFactor = 0.8; // Controls how flat the snowflake is
+        this.verticalFactor = 0.5; // Controls how flat the snowflake is
         this.particleGeometry = new THREE.SphereGeometry(this.particleRadius, 8, 8);
         this.particleMaterial = new THREE.MeshBasicMaterial({
             color: 0xffffff,
@@ -203,7 +206,8 @@ class DLASnowflake {
 
             // Calculate color based on particle count
             // const progress = this.particleCount / this.maxParticles;
-            const color = new THREE.Color().setHSL(0.6, 0.8, 0.5 + progress * 0.5); // Blue to white
+            // const color = new THREE.Color().setHSL(0.6, 0.8, 0.5 + progress * 0.5); // Blue to white
+            const color = new THREE.Color().lerpColors(this.innerColor, this.outerColor, progress);
 
 
             this.instancedMesh.setMatrixAt(this.particleCount, matrix);
@@ -327,6 +331,15 @@ class DLASnowflake {
         }
         this.instancedMesh.instanceMatrix.needsUpdate = true;
     }
+
+    updateAllColors() {
+        for (let i = 0; i < this.structure.length; i++) {
+            const progress = i / this.maxParticles;
+            const color = new THREE.Color().lerpColors(this.innerColor, this.outerColor, progress);
+            this.instancedMesh.setColorAt(i, color);
+        }
+        this.instancedMesh.instanceColor.needsUpdate = true;
+    }
     
     
     reset() {
@@ -360,6 +373,15 @@ sizeFolder.add(snowflake, 'innerSizeMultiplier', 0.2, 2.0)
 sizeFolder.add(snowflake, 'outerSizeMultiplier', 0.2, 2.0)
     .name('Outer Multiplier')
     .onChange(() => snowflake.updateAllScales());
+
+    const colorFolder = gui.addFolder('Colors');
+    colorFolder.addColor(snowflake, 'innerColor')
+        .name('Inner Color')
+        .onChange(() => snowflake.updateAllColors());
+    colorFolder.addColor(snowflake, 'outerColor')
+        .name('Outer Color')
+        .onChange(() => snowflake.updateAllColors());
+    
 
 // Growth Parameters
 const growthFolder = gui.addFolder('Growth');
