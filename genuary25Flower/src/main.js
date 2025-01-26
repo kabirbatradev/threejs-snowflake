@@ -48,6 +48,9 @@ scene.add(axesHelper);
 class DLASnowflake {
     constructor() {
         this.particleRadius = 0.08;  // NEW: explicit radius variable
+        this.innerSizeMultiplier = 0.6;
+        this.outerSizeMultiplier = 1.0;
+        
         this.randomness = 0.9; // Adjust this value to control random movement
         this.verticalFactor = 0.8; // Controls how flat the snowflake is
         this.particleGeometry = new THREE.SphereGeometry(this.particleRadius, 8, 8);
@@ -55,6 +58,7 @@ class DLASnowflake {
             color: 0xffffff,
             transparent: true,
             opacity: 0.5,
+            // vertexColors: true, 
         });
 
         this.maxParticles = 5000;
@@ -180,15 +184,35 @@ class DLASnowflake {
         for (const pos of symmetricalPositions) {
             if (this.particleCount >= this.maxParticles) return;
 
+            // const matrix = new THREE.Matrix4();
+            // matrix.setPosition(pos);
+
             const matrix = new THREE.Matrix4();
-            matrix.setPosition(pos);
+            const progress = this.particleCount / this.maxParticles;
+            // const scale = this.maxSize + (this.minSize - this.maxSize) * progress;
+            // or even simpler:
+            const scale = THREE.MathUtils.lerp(this.innerSizeMultiplier, this.outerSizeMultiplier, progress);
+            
+            // Create and combine transformation matrices in correct order
+            matrix.compose(
+                pos,
+                new THREE.Quaternion(),
+                new THREE.Vector3(scale, scale, scale)
+            );
+
+            // Calculate color based on particle count
+            // const progress = this.particleCount / this.maxParticles;
+            const color = new THREE.Color().setHSL(0.6, 0.8, 0.5 + progress * 0.5); // Blue to white
+
 
             this.instancedMesh.setMatrixAt(this.particleCount, matrix);
+            this.instancedMesh.setColorAt(this.particleCount, color);
             this.structure.push(pos);
             this.particleCount++;
         }
 
         this.instancedMesh.instanceMatrix.needsUpdate = true;
+        this.instancedMesh.instanceColor.needsUpdate = true;
     }
 
     // NEW: Spawn a particle on the sphere surface
@@ -206,11 +230,20 @@ class DLASnowflake {
     }
 
     moveParticles() {
-        // Only spawn one new particle per frame if we have room
-        if (this.activeParticles.length < this.maxActive &&
-            (this.structure.length + this.activeParticles.length) < this.maxParticles) {
+        const symmetryMultiplier = 24; // 6-fold symmetry with 4 reflections = 24
+        const potentialNewParticles = (this.structure.length + this.activeParticles.length * symmetryMultiplier);
+        
+        // Only spawn if we have room after symmetry
+        if (this.activeParticles.length < this.maxActive && 
+            potentialNewParticles < this.maxParticles) {
             this.activeParticles.push(this.spawnParticle());
         }
+
+        // // Only spawn one new particle per frame if we have room
+        // if (this.activeParticles.length < this.maxActive &&
+        //     (this.structure.length + this.activeParticles.length) < this.maxParticles) {
+        //     this.activeParticles.push(this.spawnParticle());
+        // }
 
         // Move each active particle
         for (let i = this.activeParticles.length - 1; i >= 0; i--) {
@@ -246,32 +279,35 @@ class DLASnowflake {
     checkCollision(particle) {
         const collisionDistance = this.particleRadius * 3;
         // const verticalCollisionFactor = 0.5; // More strict collision check vertically
-        
+
         return this.structure.some(fixed => {
             const dx = particle.x - fixed.x;
             const dy = (particle.y - fixed.y) / this.verticalFactor; // Scale vertical distance
             const dz = particle.z - fixed.z;
-            
+
             return Math.sqrt(dx * dx + dy * dy + dz * dz) < collisionDistance;
         });
     }
 
-    // NEW: Update visualization of active particles
+    // Update visualization of active particles
     updateActiveParticles() {
-        // Update all instances
-        for (let i = 0; i < this.maxParticles; i++) {
+        // Only update the active particles
+        for (let i = 0; i < this.activeParticles.length; i++) {
             const matrix = new THREE.Matrix4();
-
-            if (i < this.structure.length) {
-                matrix.setPosition(this.structure[i]);
-            } else if (i < this.structure.length + this.activeParticles.length) {
-                matrix.setPosition(this.activeParticles[i - this.structure.length]);
-            } else {
-                matrix.setPosition(new THREE.Vector3(999, 999, 999)); // Hide unused instances
-            }
-
+            const index = this.structure.length + i;
+            
+            matrix.setPosition(this.activeParticles[i]);
+            
+            this.instancedMesh.setMatrixAt(index, matrix);
+        }
+        
+        // Hide any remaining instances
+        for (let i = this.structure.length + this.activeParticles.length; i < this.maxParticles; i++) {
+            const matrix = new THREE.Matrix4();
+            matrix.setPosition(new THREE.Vector3(999, 999, 999));
             this.instancedMesh.setMatrixAt(i, matrix);
         }
+        
         this.instancedMesh.instanceMatrix.needsUpdate = true;
     }
 }
