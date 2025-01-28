@@ -17,6 +17,7 @@ camera.lookAt(0, 0, 0);
 // Renderer setup
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
 // Bloom setup
@@ -429,5 +430,6 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
 
     renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
     composer.setSize(width, height);
 });
