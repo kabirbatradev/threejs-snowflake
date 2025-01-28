@@ -2,7 +2,7 @@
 
 3D Diffusion-Limited Aggregation (DLA) snowflake with 24-fold symmetry ❄️
 
-Particles follow random walks until they stick to the growing structure, creating organic crystalline patterns.
+Particles follow random walks until they stick to the growing structure, creating organic crystalline patterns. Built with Three.js and lil-gui for Genuary 2025, Day 26 - Symmetry.
 
 Interactive demo: https://kabirbatradev.github.io/threejs-snowflake/
 
@@ -16,13 +16,6 @@ Interactive demo: https://kabirbatradev.github.io/threejs-snowflake/
   - Growth patterns
   - Colors
   - Visual effects
-
-## Built With
-- Three.js
-- lil-gui
-
-## Created for
-Genuary 2025, Day 26 - Symmetry
 
 ## Usage
 Controls:
